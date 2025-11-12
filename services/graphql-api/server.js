@@ -1,22 +1,22 @@
-// ===== IMPOR LAMA ANDA =====
+// IMPOR LAMA ANDA 
 const express = require('express');
 const { ApolloServer } = require('apollo-server-express');
 const { PubSub } = require('graphql-subscriptions');
 const { v4: uuidv4 } = require('uuid');
 const cors = require('cors');
 
-// ===== IMPOR BARU UNTUK APOLLO v3 + SUBSCRIPTIONS =====
+// IMPOR BARU UNTUK APOLLO v3 + SUBSCRIPTIONS 
 const { createServer } = require('http');
 const { ApolloServerPluginDrainHttpServer } = require('apollo-server-core');
 const { makeExecutableSchema } = require('@graphql-tools/schema');
 const { WebSocketServer } = require('ws');
 const { useServer } = require('graphql-ws/lib/use/ws');
-// ===================================================
+
 
 const app = express();
 const pubsub = new PubSub();
 
-// Enable CORS (Kode Anda, tidak berubah)
+// Enable CORS 
 app.use(cors({
   origin: [
     'http://localhost:3000', // API Gateway
@@ -27,7 +27,7 @@ app.use(cors({
   credentials: true
 }));
 
-// In-memory data store (Kode Anda, tidak berubah)
+// In-memory data store 
 let posts = [
   {
     id: '1',
@@ -54,7 +54,7 @@ let comments = [
   }
 ];
 
-// GraphQL type definitions (VERSI BERSIH TANPA KARAKTER SILUMAN)
+// GraphQL type definitions (Tanpa Karakter Siluman)
 const typeDefs = `
 type Post {
   id: ID!
@@ -95,7 +95,7 @@ type Subscription {
 }
 `;
 
-// GraphQL resolvers (Kode Anda, tidak berubah)
+// GraphQL resolvers 
 const resolvers = {
   Query: {
     posts: () => posts,
@@ -182,7 +182,7 @@ const resolvers = {
   },
 };
 
-// ===== FUNGSI startServer() BARU UNTUK v3 =====
+// FUNGSI startServer() BARU UNTUK v3
 async function startServer() {
   // Buat 'schema' (gabungan typeDefs dan resolvers)
   const schema = makeExecutableSchema({ typeDefs, resolvers });
@@ -193,23 +193,22 @@ async function startServer() {
   // Buat server WebSocket
   const wsServer = new WebSocketServer({
     server: httpServer,
-    path: '/graphql', // Path harus SAMA dengan Apollo Server
+    path: '/graphql', 
   });
 
-  // Siapkan 'cleanup' handler untuk WebSocket menggunakan 'graphql-ws'
   const serverCleanup = useServer({ schema }, wsServer);
 
   // Buat Apollo Server
   const server = new ApolloServer({
-    schema, // Gunakan schema yang sudah dibuat
+    schema,
     context: ({ req }) => {
       return { req };
     },
     plugins: [
-      // Plugin #1: Untuk mematikan httpServer dengan benar
+      // Plugin #1: mematikan httpServer 
       ApolloServerPluginDrainHttpServer({ httpServer }),
 
-      // Plugin #2: Untuk mematikan WebSocket server dengan benar
+      // Plugin #2: mematikan WebSocket server 
       {
         async serverWillStart() {
           return {
@@ -220,7 +219,7 @@ async function startServer() {
         },
       },
       
-      // Plugin #3: Logger Anda yang lama
+      // Plugin #3: Logger lama
       {
         requestDidStart() {
           return {
@@ -241,15 +240,13 @@ async function startServer() {
 
   const PORT = process.env.PORT || 4000;
 
-  // Jalankan servernya!
-  // Kita .listen() di 'httpServer', BUKAN 'app'
   httpServer.listen(PORT, () => {
     console.log(`🚀 GraphQL API Server running on port ${PORT}`);
     console.log(`🔗 GraphQL endpoint: http://localhost:${PORT}${server.graphqlPath}`);
     console.log(`📡 Subscriptions ready at ws://localhost:${PORT}${server.graphqlPath}`);
   });
 
-  // Graceful shutdown (Kode Anda, tidak berubah)
+  // Graceful shutdown 
   process.on('SIGTERM', () => {
     console.log('SIGTERM received, shutting down gracefully');
     httpServer.close(() => {
@@ -257,9 +254,8 @@ async function startServer() {
     });
   });
 }
-// =============================================
 
-// Health check endpoint (Kode Anda, tidak berubah)
+// Health check endpoint 
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy',
@@ -272,7 +268,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Error handling (Kode Anda, tidak berubah)
+// Error handling
 app.use((err, req, res, next) => {
 /**
  * @deprecated
@@ -284,7 +280,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server (Kode Anda, tidak berubah)
+// Start server 
 startServer().catch(error => {
   console.error('Failed to start GraphQL server:', error);
   process.exit(1);
