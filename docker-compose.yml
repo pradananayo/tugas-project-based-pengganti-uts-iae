@@ -1,3 +1,4 @@
+# docker-compose.yml
 version: '3.8'
 
 services:
@@ -8,7 +9,9 @@ services:
       - "3001:3001"
     environment:
       - PORT=3001
-      - NODE_ENV=development
+      - NODE_ENV=production
+      - RSA_PRIVATE_KEY=${RSA_PRIVATE_KEY} # Ambil dari .env
+      - RSA_PUBLIC_KEY=${RSA_PUBLIC_KEY}  # Ambil dari .env
     volumes:
       - ./services/rest-api:/app
       - /app/node_modules
@@ -22,7 +25,7 @@ services:
       - "4000:4000"
     environment:
       - PORT=4000
-      - NODE_ENV=development
+      - NODE_ENV=production
     volumes:
       - ./services/graphql-api:/app
       - /app/node_modules
@@ -33,12 +36,12 @@ services:
   api-gateway:
     build: ./api-gateway
     ports:
-      - "3000:3000"
+      - "${PORT_GATEWAY:-3000}:3000" # Gunakan port dari .env jika ada
     environment:
       - PORT=3000
       - REST_API_URL=http://rest-api:3001
       - GRAPHQL_API_URL=http://graphql-api:4000
-      - NODE_ENV=development
+      - NODE_ENV=production
     depends_on:
       - rest-api
       - graphql-api
@@ -54,10 +57,11 @@ services:
       context: ./frontend-app
       target: runner
     ports:
-      - "3002:3000"
+      - "${PORT_FRONTEND:-3002}:3000" # Gunakan port dari .env jika ada
     environment:
-      - NEXT_PUBLIC_API_GATEWAY_URL=http://localhost:3000
-      - NEXT_PUBLIC_GRAPHQL_URL=http://localhost:4000/graphql
+      # URL ini harus bisa diakses dari browser pengguna, BUKAN nama kontainer
+      - NEXT_PUBLIC_API_GATEWAY_URL=http://localhost:${PORT_GATEWAY:-3000}
+      - NEXT_PUBLIC_GRAPHQL_URL=http://localhost:${PORT_GATEWAY:-3000}/graphql
     depends_on:
       - api-gateway
     networks:

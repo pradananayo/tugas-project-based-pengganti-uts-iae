@@ -1,12 +1,19 @@
+// api-gateway/server.js
 const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
+const { authMiddleware, fetchPublicKey } = require('./authMiddleware'); // Impor middleware
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const REST_API_URL = process.env.REST_API_URL || 'http://localhost:3001';
+const GRAPHQL_API_URL = process.env.GRAPHQL_API_URL || 'http://localhost:4000';
+
+// Ambil Public Key saat startup
+fetchPublicKey();
 
 // Security middleware
 app.use(helmet());
@@ -29,24 +36,61 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Health check endpoint
+// Health check endpoint (Rute Publik)
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy', 
     timestamp: new Date().toISOString(),
     services: {
-      'rest-api': process.env.REST_API_URL || 'http://localhost:3001',
-      'graphql-api': process.env.GRAPHQL_API_URL || 'http://localhost:4000'
+      'rest-api': REST_API_URL,
+      'graphql-api': GRAPHQL_API_URL
     }
   });
 });
 
-// Proxy configuration for REST API
-const restApiProxy = createProxyMiddleware({
-  target: process.env.REST_API_URL || 'http://localhost:3001',
+// Proxy untuk Rute Autentikasi (Publik)
+const authProxy = createProxyMiddleware({
+  target: REST_API_URL,
   changeOrigin: true,
   pathRewrite: {
-    '^/api': '/api', // Keep the /api prefix
+    '^/api/auth': '/auth', // /api/auth/login -> http://rest-api:3001/auth/login
+  },
+  onProxyReq: (proxyReq, req, res) => {
+    console.log(`[Auth Proxy] ${req.method} ${req.url} -> ${proxyReq.path}`);
+  }
+});
+app.use('/api/auth', authProxy);
+
+// Proxy untuk Public Key (Publik, dibutuhkan oleh gateway lain jika ada)
+const publicKeyProxy = createProxyMiddleware({
+  target: REST_API_URL,
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api/public-key': '/public-key',
+  },
+});
+app.use('/api/public-key', publicKeyProxy);
+
+
+// --- Middleware Keamanan Diterapkan Di Sini ---
+// Semua rute di bawah ini sekarang memerlukan token JWT yang valid
+// app.use(authMiddleware); // Terapkan ke semua rute di bawah
+
+// Proxy untuk REST API (Terproteksi)
+const restApiProxy = createProxyMiddleware({
+  target: REST_API_URL,
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api/users': '/api/users', // /api/users -> http://rest-api:3001/api/users
+  },
+  onProxyReq: (proxyReq, req, res) => {
+    // Forward info user yang sudah diautentikasi ke service backend
+    if (req.user) {
+      proxyReq.setHeader('x-user-id', req.user.id);
+      proxyReq.setHeader('x-user-email', req.user.email);
+      proxyReq.setHeader('x-user-role', req.user.role);
+    }
+    console.log(`[REST Proxy] ${req.method} ${req.url} -> ${proxyReq.path}`);
   },
   onError: (err, req, res) => {
     console.error('REST API Proxy Error:', err.message);
@@ -54,67 +98,41 @@ const restApiProxy = createProxyMiddleware({
       error: 'REST API service unavailable',
       message: err.message 
     });
-  },
-  onProxyReq: (proxyReq, req, res) => {
-    console.log(`[REST API] ${req.method} ${req.url} -> ${proxyReq.path}`);
   }
 });
+// Terapkan middleware auth HANYA untuk rute ini
+app.use('/api/users', authMiddleware, restApiProxy);
 
-// Proxy configuration for GraphQL API
+// Proxy untuk GraphQL API (Terproteksi)
 const graphqlApiProxy = createProxyMiddleware({
-  target: process.env.GRAPHQL_API_URL || 'http://localhost:4000',
+  target: GRAPHQL_API_URL,
   changeOrigin: true,
-  ws: true, // Enable WebSocket proxying for subscriptions
+  ws: true, // Penting untuk subscriptions
+  onProxyReq: (proxyReq, req, res) => {
+    // Forward info user
+    if (req.user) {
+      proxyReq.setHeader('x-user-id', req.user.id);
+      proxyReq.setHeader('x-user-email', req.user.email);
+      proxyReq.setHeader('x-user-role', req.user.role);
+    }
+    console.log(`[GraphQL Proxy] ${req.method} ${req.url} -> ${proxyReq.path}`);
+  },
   onError: (err, req, res) => {
     console.error('GraphQL API Proxy Error:', err.message);
     res.status(500).json({ 
       error: 'GraphQL API service unavailable',
       message: err.message 
     });
-  },
-  onProxyReq: (proxyReq, req, res) => {
-    console.log(`[GraphQL API] ${req.method} ${req.url} -> ${proxyReq.path}`);
   }
 });
+// Terapkan middleware auth HANYA untuk rute ini
+app.use('/graphql', authMiddleware, graphqlApiProxy);
 
-// Apply proxies
-app.use('/api', restApiProxy);
-app.use('/graphql', graphqlApiProxy);
-
-// Catch-all route
-app.get('*', (req, res) => {
+// Catch-all route 404
+app.use('*', (req, res) => {
   res.status(404).json({ 
-    error: 'Route not found',
-    availableRoutes: [
-      '/health',
-      '/api/* (proxied to REST API)',
-      '/graphql (proxied to GraphQL API)'
-    ]
+    error: 'Route not found on gateway'
   });
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Gateway Error:', err);
-  res.status(500).json({ 
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-  });
-});
-
-const server = app.listen(PORT, () => {
-  console.log(`🚀 API Gateway running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔄 Proxying /api/* to: ${process.env.REST_API_URL || 'http://localhost:3001'}`);
-  console.log(`🔄 Proxying /graphql to: ${process.env.GRAPHQL_API_URL || 'http://localhost:4000'}`);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    console.log('Process terminated');
-  });
-});
-
-module.exports = app;
+// ... (sisanya sama: Error handling, app.listen,

@@ -1,8 +1,11 @@
+// services/rest-api/server.js
+require('dotenv').config(); // Load .env file
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const userRoutes = require('./routes/users');
+const authRoutes = require('./routes/auth'); // Kita akan buat file ini
 const { errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -32,8 +35,23 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Routes
+// --- Rute Baru ---
+// Rute untuk Autentikasi (login/register)
+app.use('/auth', authRoutes);
+
+// Rute untuk data User (nanti akan diproteksi oleh gateway)
 app.use('/api/users', userRoutes);
+
+// Rute untuk menyediakan Public Key
+app.get('/public-key', (req, res) => {
+  const publicKey = process.env.RSA_PUBLIC_KEY;
+  if (!publicKey) {
+    return res.status(500).send('Public key not configured.');
+  }
+  res.setHeader('Content-Type', 'text/plain');
+  res.send(publicKey);
+});
+
 
 // Error handling middleware
 app.use(errorHandler);
@@ -48,7 +66,9 @@ app.use('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`🚀 REST API Service running on port ${PORT}`);
-  console.log(`📋 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔑 Public Key endpoint: http://localhost:${PORT}/public-key`);
+  console.log(`🔒 Auth endpoints: http://localhost:${PORT}/auth/...`);
+  console.log(`👤 User endpoints: http://localhost:${PORT}/api/users/...`);
 });
 
 module.exports = app;
