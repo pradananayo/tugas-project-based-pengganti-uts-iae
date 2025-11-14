@@ -2,7 +2,8 @@
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 
-const USER_SERVICE_URL = process.env.REST_API_URL || 'http://localhost:3001';
+// Di dalam Docker, kita panggil nama service-nya
+const USER_SERVICE_URL = process.env.REST_API_URL || 'http://rest-api:3001';
 
 let cachedPublicKey = null;
 
@@ -11,12 +12,11 @@ let cachedPublicKey = null;
  */
 const fetchPublicKey = async () => {
   try {
-    // Nama service 'rest-api' akan di-resolve oleh Docker
     const response = await axios.get(`${USER_SERVICE_URL}/public-key`); 
     cachedPublicKey = response.data;
-    console.log('Successfully fetched public key.');
+    console.log('[API Gateway] Successfully fetched public key.');
   } catch (err) {
-    console.error('Failed to fetch public key:', err.message);
+    console.error('[API Gateway] Failed to fetch public key:', err.message);
     // Coba lagi setelah 5 detik
     setTimeout(fetchPublicKey, 5000);
   }
@@ -27,7 +27,7 @@ const fetchPublicKey = async () => {
  */
 const authMiddleware = async (req, res, next) => {
   if (!cachedPublicKey) {
-    console.error('Public key is not available. Retrying fetch...');
+    console.error('[API Gateway] Public key is not available. Retrying fetch...');
     await fetchPublicKey(); // Coba ambil lagi jika belum ada
     if (!cachedPublicKey) {
       return res.status(503).json({ error: 'Service unavailable. Auth public key not loaded.' });
@@ -50,7 +50,7 @@ const authMiddleware = async (req, res, next) => {
     
     next();
   } catch (err) {
-    console.error('JWT Verification Error:', err.message);
+    console.error('[API Gateway] JWT Verification Error:', err.message);
     return res.status(401).json({ error: 'Unauthorized. Invalid token.' });
   }
 };

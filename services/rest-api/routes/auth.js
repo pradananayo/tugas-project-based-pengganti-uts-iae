@@ -2,22 +2,22 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
+// const bcrypt = require('bcryptjs'); // <<< DIHAPUS
 const { validateUser } = require('../middleware/validation');
 
 const router = express.Router();
 
 // --- Database In-Memory Sederhana ---
 const users = [
-  // User contoh (password: "password123")
   {
     id: '1',
     name: 'John Doe',
     email: 'john@example.com',
     age: 30,
     role: 'admin',
-    // --- HASH BARU YANG SUDAH DIVERIFIKASI ---
-    passwordHash: '$2a$10$f/O.lGkLvo3hA4iTq8A.j.3tGZ9k2G/C.j.W.p.s.m.W.A.C.M.O.K', // Hash untuk "password123"
+    // --- DIGANTI ---
+    password: 'password123', // Password disimpan sebagai plain text
+    // --- -------- ---
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }
@@ -33,7 +33,7 @@ if (!PRIVATE_KEY) {
   process.exit(1); 
 }
 
-// POST /auth/register (Tidak berubah)
+// POST /auth/register
 router.post('/register', validateUser, async (req, res) => {
   const { name, email, age, password } = req.body;
 
@@ -41,15 +41,16 @@ router.post('/register', validateUser, async (req, res) => {
     return res.status(409).json({ error: 'Email already exists' });
   }
 
-  const salt = await bcrypt.genSalt(10);
-  const passwordHash = await bcrypt.hash(password, salt);
+  // --- Hapus Hashing ---
+  // const salt = await bcrypt.genSalt(10);
+  // const passwordHash = await bcrypt.hash(password, salt);
 
   const newUser = {
     id: uuidv4(),
     name,
     email,
     age,
-    passwordHash,
+    password: password, // Simpan plain text
     role: 'user',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -63,7 +64,7 @@ router.post('/register', validateUser, async (req, res) => {
   });
 });
 
-// POST /auth/login (Dengan Logging Tambahan)
+// POST /auth/login
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   console.log(`[AUTH LOGIN] Menerima permintaan login untuk: ${email}`); // LOG 1
@@ -74,11 +75,13 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
-  console.log(`[AUTH LOGIN] User ditemukan: ${user.id}. Membandingkan password...`); // LOG 3
-  const isMatch = await bcrypt.compare(password, user.passwordHash);
+  console.log(`[AUTH LOGIN] User ditemukan: ${user.id}. Membandingkan password (plain text)...`); // LOG 3
+  
+  // --- Perbandingan diubah menjadi string biasa ---
+  const isMatch = (password === user.password);
   
   if (!isMatch) {
-    console.warn(`[AUTH LOGIN] Gagal: Password tidak cocok untuk ${email}`); // LOG 4
+    console.warn(`[AUTH LOGIN] Gagal: Password tidak cocok untuk ${email}. Input: [${password}], Disimpan: [${user.password}]`); // LOG 4
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
