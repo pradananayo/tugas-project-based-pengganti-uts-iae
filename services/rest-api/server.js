@@ -1,11 +1,11 @@
-// services/rest-api/server.js
-require('dotenv').config(); // Load .env file
+require('dotenv').config(); 
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const userRoutes = require('./routes/users');
-const authRoutes = require('./routes/auth'); // Kita akan buat file ini
+const authRoutes = require('./routes/auth');
+const teamRoutes = require('./routes/teams'); 
 const { errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -17,8 +17,8 @@ app.use(cors());
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000, 
+  max: 100 
 });
 app.use(limiter);
 
@@ -35,14 +35,13 @@ app.get('/health', (req, res) => {
   });
 });
 
-// --- Rute Baru ---
-// Rute untuk Autentikasi (login/register)
+// --- Rute ---
 app.use('/auth', authRoutes);
 
-// Rute untuk data User (nanti akan diproteksi oleh gateway)
 app.use('/api/users', userRoutes);
 
-// Rute untuk menyediakan Public Key
+app.use('/api/teams', teamRoutes); 
+
 app.get('/public-key', (req, res) => {
   const publicKey = process.env.RSA_PUBLIC_KEY;
   if (!publicKey) {
@@ -56,7 +55,6 @@ app.get('/public-key', (req, res) => {
 // Error handling middleware
 app.use(errorHandler);
 
-// 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({
     error: 'Route not found',
@@ -69,6 +67,7 @@ app.listen(PORT, () => {
   console.log(`🔑 Public Key endpoint: http://localhost:${PORT}/public-key`);
   console.log(`🔒 Auth endpoints: http://localhost:${PORT}/auth/...`);
   console.log(`👤 User endpoints: http://localhost:${PORT}/api/users/...`);
+  console.log(`👥 Team endpoints: http://localhost:${PORT}/api/teams/...`); // Log baru
 });
 
 module.exports = app;

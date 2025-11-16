@@ -5,14 +5,13 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
-const { authMiddleware, fetchPublicKey } = require('./authMiddleware'); // Impor middleware
+const { authMiddleware, fetchPublicKey } = require('./authMiddleware'); 
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const REST_API_URL = process.env.REST_API_URL || 'http://rest-api:3001';
 const GRAPHQL_API_URL = process.env.GRAPHQL_API_URL || 'http://graphql-api:4000';
 
-// Ambil Public Key saat startup
 fetchPublicKey();
 
 // Security middleware
@@ -30,13 +29,12 @@ app.use(cors({
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000, 
   max: 100,
   message: 'Too many requests from this IP, please try again later.'
 });
 app.use(limiter);
 
-// Health check endpoint (Rute Publik)
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy', 
@@ -48,21 +46,18 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Proxy untuk Rute Autentikasi (Publik)
 const authProxy = createProxyMiddleware({
   target: REST_API_URL,
   changeOrigin: true,
   pathRewrite: {
-    '^/api/auth': '/auth', // <-- INI PERBAIKANNYA
+    '^/api/auth': '/auth', 
   },
   onProxyReq: (proxyReq, req, res) => {
     console.log(`[Auth Proxy] ${req.method} ${req.url} -> ${proxyReq.path}`);
   }
 });
-app.use('/api/auth', authProxy); // <-- Rute ini dipisah agar tidak kena authMiddleware
-
-// Proxy untuk Public Key (Publik)
-const publicKeyProxy = createProxyMiddleware({
+app.use('/api/auth', authProxy); 
+const publicKeyProxy = createProxyMiddleware({ 
   target: REST_API_URL,
   changeOrigin: true,
   pathRewrite: {
@@ -71,15 +66,13 @@ const publicKeyProxy = createProxyMiddleware({
 });
 app.use('/api/public-key', publicKeyProxy);
 
-// --- Middleware Keamanan Diterapkan Di Sini ---
-// Semua rute di bawah ini sekarang memerlukan token JWT yang valid
 
-// Proxy untuk REST API (Terproteksi)
+
 const restApiProxy = createProxyMiddleware({
   target: REST_API_URL,
   changeOrigin: true,
   pathRewrite: {
-    '^/api/users': '/api/users', // <-- INI PERBAIKANNYA
+    '^/api/users': '/api/users', 
   },
   onProxyReq: (proxyReq, req, res) => {
     if (req.user) {
@@ -94,9 +87,29 @@ const restApiProxy = createProxyMiddleware({
     res.status(500).json({ error: 'REST API service unavailable' });
   }
 });
-app.use('/api/users', authMiddleware, restApiProxy); // <-- Diterapkan di sini
+app.use('/api/users', authMiddleware, restApiProxy); 
 
-// Proxy untuk GraphQL API (Terproteksi)
+const teamProxy = createProxyMiddleware({
+  target: REST_API_URL,
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api/teams': '/api/teams', 
+  },
+  onProxyReq: (proxyReq, req, res) => {
+    if (req.user) {
+      proxyReq.setHeader('x-user-id', req.user.id);
+      proxyReq.setHeader('x-user-email', req.user.email);
+      proxyReq.setHeader('x-user-role', req.user.role);
+    }
+    console.log(`[Team Proxy] ${req.method} ${req.url} -> ${proxyReq.path}`);
+  },
+  onError: (err, req, res) => {
+    console.error('Team API Proxy Error:', err.message);
+    res.status(500).json({ error: 'Team API service unavailable' });
+  }
+});
+app.use('/api/teams', authMiddleware, teamProxy); 
+
 const graphqlApiProxy = createProxyMiddleware({
   target: GRAPHQL_API_URL,
   changeOrigin: true,
@@ -114,16 +127,14 @@ const graphqlApiProxy = createProxyMiddleware({
     res.status(500).json({ error: 'GraphQL API service unavailable' });
   }
 });
-app.use('/graphql', authMiddleware, graphqlApiProxy); // <-- Diterapkan di sini
+app.use('/graphql', authMiddleware, graphqlApiProxy); 
 
-// Catch-all route 404
 app.use('*', (req, res) => {
   res.status(404).json({ 
     error: 'Route not found on gateway'
   });
 });
 
-// Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Gateway Error:', err);
   res.status(500).json({ 
@@ -137,6 +148,7 @@ const server = app.listen(PORT, () => {
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
   console.log(`🔄 Proxying /api/auth/* to: ${REST_API_URL}/auth`);
   console.log(`🔄 Proxying /api/users/* to: ${REST_API_URL}/api/users (Protected)`);
+  console.log(`🔄 Proxying /api/teams/* to: ${REST_API_URL}/api/teams (Protected)`);
   console.log(`🔄 Proxying /graphql to: ${GRAPHQL_API_URL} (Protected)`);
 });
 

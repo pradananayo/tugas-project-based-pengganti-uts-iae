@@ -1,11 +1,9 @@
-// frontend-app/src/app/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
-import { authApi } from '@/lib/api'; // Ganti userApi dengan authApi
+import { authApi, teamApi } from '@/lib/api'; 
 
-// --- GraphQL queries and mutations (Baru) ---
 const GET_TASKS = gql`
   query GetTasks {
     tasks {
@@ -38,33 +36,44 @@ const UPDATE_TASK_STATUS = gql`
   }
 `;
 
-// --- Komponen Utama ---
 export default function Home() {
   const [token, setToken] = useState<string | null>(null);
   
-  // State untuk Form Login/Register
   const [email, setEmail] = useState('john@example.com');
   const [password, setPassword] = useState('password123');
   
-  // State untuk Form Task Baru
   const [newTask, setNewTask] = useState({ title: '', description: '' });
 
-  // GraphQL hooks
+  const [teams, setTeams] = useState<any[]>([]);
+  const [loadingTeams, setLoadingTeams] = useState(true);
+
   const { data: tasksData, loading: tasksLoading, refetch: refetchTasks } = useQuery(GET_TASKS, {
-    skip: !token, // Jangan jalankan query jika tidak ada token
+    skip: !token, 
   });
   const [createTask] = useMutation(CREATE_TASK);
   const [updateTaskStatus] = useMutation(UPDATE_TASK_STATUS);
 
-  // Cek token di local storage saat komponen dimuat
   useEffect(() => {
     const storedToken = localStorage.getItem('jwt-token');
     if (storedToken) {
       setToken(storedToken);
+      fetchTeams(); 
     }
   }, []);
 
-  // Handler untuk Login
+  const fetchTeams = async () => {
+    setLoadingTeams(true);
+    try {
+      const response = await teamApi.getMyTeams();
+      setTeams(response.data);
+    } catch (error) {
+      console.error('Error fetching teams:', error);
+    } finally {
+      setLoadingTeams(false);
+    }
+  };
+  // --- -------------------- ---
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -72,20 +81,19 @@ export default function Home() {
       const { token } = response.data;
       localStorage.setItem('jwt-token', token);
       setToken(token);
-      refetchTasks(); // Ambil data task setelah login
+      refetchTasks(); 
+      fetchTeams(); 
     } catch (error) {
       console.error('Error logging in:', error);
       alert('Login Gagal!');
     }
   };
 
-  // Handler untuk Logout
   const handleLogout = () => {
     localStorage.removeItem('jwt-token');
     setToken(null);
   };
 
-  // Handler untuk Buat Task
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -99,7 +107,6 @@ export default function Home() {
     }
   };
 
-  // Handler untuk Update Status Task
   const handleStatusChange = async (id: string, newStatus: string) => {
     try {
       await updateTaskStatus({
@@ -111,9 +118,7 @@ export default function Home() {
     }
   };
   
-  // --- Tampilan (View) ---
   
-  // Jika tidak ada token, tampilkan form Login
   if (!token) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -153,7 +158,6 @@ export default function Home() {
     );
   }
 
-  // Jika ada token, tampilkan aplikasi Task Management
   return (
     <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
@@ -171,35 +175,50 @@ export default function Home() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* Kolom 1: Buat Task Baru */}
-          <div className="lg:col-span-1 bg-white shadow rounded-lg p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Create Task</h2>
-            <form onSubmit={handleCreateTask} className="space-y-4">
-              <input
-                type="text"
-                placeholder="Title"
-                value={newTask.title}
-                onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                className="border rounded-md px-3 py-2 w-full"
-                required
-              />
-              <textarea
-                placeholder="Description"
-                value={newTask.description}
-                onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-                className="border rounded-md px-3 py-2 w-full h-24"
-                required
-              />
-              <button
-                type="submit"
-                className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 w-full"
-              >
-                Add Task
-              </button>
-            </form>
+          <div className="lg:col-span-1 space-y-8">
+            <div className="bg-white shadow rounded-lg p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Create Task</h2>
+              <form onSubmit={handleCreateTask} className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="Title"
+                  value={newTask.title}
+                  onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                  className="border rounded-md px-3 py-2 w-full"
+                  required
+                />
+                <textarea
+                  placeholder="Description"
+                  value={newTask.description}
+                  onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                  className="border rounded-md px-3 py-2 w-full h-24"
+                  required
+                />
+                <button
+                  type="submit"
+                  className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 w-full"
+                >
+                  Add Task
+                </button>
+              </form>
+            </div>
+
+            <div className="bg-white shadow rounded-lg p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">My Teams</h2>
+              {loadingTeams ? (
+                <p>Loading teams...</p>
+              ) : (
+                <ul className="space-y-2">
+                  {teams.map((team: any) => (
+                    <li key={team.id} className="p-2 border rounded">
+                      {team.name}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
 
-          {/* Kolom 2: Daftar Task */}
           <div className="lg:col-span-2 bg-white shadow rounded-lg p-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">My Tasks</h2>
             {tasksLoading ? (

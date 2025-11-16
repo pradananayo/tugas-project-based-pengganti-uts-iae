@@ -1,13 +1,10 @@
-// services/rest-api/routes/auth.js
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
-// const bcrypt = require('bcryptjs'); // <<< DIHAPUS
 const { validateUser } = require('../middleware/validation');
 
 const router = express.Router();
 
-// --- Database In-Memory Sederhana ---
 const users = [
   {
     id: '1',
@@ -15,9 +12,7 @@ const users = [
     email: 'john@example.com',
     age: 30,
     role: 'admin',
-    // --- DIGANTI ---
-    password: 'password123', // Password disimpan sebagai plain text
-    // --- -------- ---
+    password: 'password123', 
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }
@@ -25,7 +20,6 @@ const users = [
 const teams = [
   { id: 't1', name: 'Tim Developer', members: ['1'] }
 ];
-// ------------------------------------
 
 const PRIVATE_KEY = process.env.RSA_PRIVATE_KEY;
 if (!PRIVATE_KEY) {
@@ -41,16 +35,12 @@ router.post('/register', validateUser, async (req, res) => {
     return res.status(409).json({ error: 'Email already exists' });
   }
 
-  // --- Hapus Hashing ---
-  // const salt = await bcrypt.genSalt(10);
-  // const passwordHash = await bcrypt.hash(password, salt);
-
   const newUser = {
     id: uuidv4(),
     name,
     email,
     age,
-    password: password, // Simpan plain text
+    password: password, 
     role: 'user',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -67,17 +57,16 @@ router.post('/register', validateUser, async (req, res) => {
 // POST /auth/login
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
-  console.log(`[AUTH LOGIN] Menerima permintaan login untuk: ${email}`); // LOG 1
+  console.log(`[AUTH LOGIN] Menerima permintaan login untuk: ${email}`); 
 
   const user = users.find(u => u.email === email);
   if (!user) {
-    console.warn(`[AUTH LOGIN] Gagal: User tidak ditemukan untuk ${email}`); // LOG 2
+    console.warn(`[AUTH LOGIN] Gagal: User tidak ditemukan untuk ${email}`); 
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
   console.log(`[AUTH LOGIN] User ditemukan: ${user.id}. Membandingkan password (plain text)...`); // LOG 3
   
-  // --- Perbandingan diubah menjadi string biasa ---
   const isMatch = (password === user.password);
   
   if (!isMatch) {

@@ -1,6 +1,5 @@
 // services/graphql-api/server.js
 
-// IMPOR LAMA ANDA 
 const express = require('express');
 const { ApolloServer } = require('apollo-server-express');
 const { PubSub } = require('graphql-subscriptions');
@@ -36,7 +35,7 @@ let tasks = [
     title: 'Selesaikan Laporan Keuangan',
     description: 'Laporan Q3 harus selesai akhir minggu ini.',
     status: 'IN_PROGRESS',
-    authorId: '1', // ID User dari User Service
+    authorId: '1', 
     createdAt: new Date().toISOString(),
   },
   {
@@ -49,7 +48,6 @@ let tasks = [
   }
 ];
 
-// --- GraphQL type definitions (Skema Baru) ---
 const typeDefs = `
   enum TaskStatus {
     TODO
@@ -85,10 +83,8 @@ const typeDefs = `
 // --- GraphQL resolvers (Resolvers Baru) ---
 const resolvers = {
   Query: {
-    // Dapatkan semua task (Di dunia nyata, filter berdasarkan authorId dari context)
     tasks: (parent, args, context) => {
       console.log('Fetching tasks for user:', context.userId);
-      // Simpel: kembalikan semua task. Idealnya: tasks.filter(t => t.authorId === context.userId)
       return tasks;
     },
     task: (_, { id }) => tasks.find(task => task.id === id),
@@ -96,7 +92,6 @@ const resolvers = {
 
   Mutation: {
     createTask: (_, { title, description }, context) => {
-      // Dapatkan authorId dari context yang di-inject oleh gateway
       const { userId } = context;
       if (!userId) {
         throw new Error('Not authenticated');
@@ -107,11 +102,11 @@ const resolvers = {
         title,
         description,
         status: 'TODO',
-        authorId: userId, // Set authorId dari token JWT
+        authorId: userId, 
         createdAt: new Date().toISOString(),
       };
       tasks.push(newTask);
-      pubsub.publish('TASK_ADDED', { taskAdded: newTask }); // Publikasi subscription
+      pubsub.publish('TASK_ADDED', { taskAdded: newTask }); 
       return newTask;
     },
 
@@ -126,7 +121,6 @@ const resolvers = {
         throw new Error('Task not found');
       }
 
-      // Idealnya cek apakah user ini boleh update task (task.authorId === userId)
       
       const updatedTask = {
         ...tasks[taskIndex],
@@ -135,7 +129,6 @@ const resolvers = {
       
       tasks[taskIndex] = updatedTask;
       
-      // Publikasi subscription
       pubsub.publish('TASK_UPDATED', { taskUpdated: updatedTask });
       
       return updatedTask;
@@ -152,7 +145,6 @@ const resolvers = {
   },
 };
 
-// --- Setup Apollo Server (v3) ---
 async function startServer() {
   const schema = makeExecutableSchema({ typeDefs, resolvers });
   const httpServer = createServer(app);
@@ -166,15 +158,12 @@ async function startServer() {
   const server = new ApolloServer({
     schema,
     context: ({ req }) => {
-      // --- INI PENTING ---
-      // Ambil header yang di-forward oleh API Gateway
       const userId = req.headers['x-user-id'] || null;
       const userEmail = req.headers['x-user-email'] || null;
       const userRole = req.headers['x-user-role'] || null;
 
       console.log(`[GraphQL Context] User: ${userId} (${userEmail})`);
 
-      // Return context yang akan tersedia di semua resolver
       return { userId, userEmail, userRole };
     },
     plugins: [
@@ -210,7 +199,6 @@ async function startServer() {
   });
 }
 
-// Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy',
